@@ -1,0 +1,57 @@
+# The whole architecture in one file: 3 services, 2 networks, 1 volume.
+
+services:
+  # ---------- Database ----------
+  mongo:
+    image: mongo:7                      # official MongoDB image
+    restart: unless-stopped             # auto-restart if it crashes
+    volumes:
+      - mongo-data:/data/db             # keep data in a named volume
+      - ./db/seed.js:/docker-entrypoint-initdb.d/seed.js:ro   # seed on first start
+    networks: [backend]                 # only reachable by the app
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- NodeJS app ----------
+  app:
+    build: ./app                        # build from app/Dockerfile
+    image: apples-app:latest
+    restart: unless-stopped
+    environment:
+      MONGO_URL: mongodb://mongo:27017  # "mongo" = service name (Docker DNS)
+      DB_NAME: store
+    depends_on:
+      mongo:
+        condition: service_healthy      # start only after mongo is healthy
+    deploy:
+      replicas: 2                       # 2 app containers behind nginx
+    networks: [frontend, backend]       # talks to nginx AND mongo
+
+  # ---------- Load balancer ----------
+  nginx:
+    image: nginx:1.27-alpine            # official nginx image
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"           # the ONLY port open to the host
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      app:
+        condition: service_healthy      # start only after app is healthy
+    networks: [frontend]                # can reach the app, NOT the DB
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+networks:
+  frontend:                             # nginx <-> app
+  backend:                              # app <-> mongo
+    internal: true                      # no internet access, isolated
+
+volumes:
+  mongo-data:                           # DB files survive container restarts
