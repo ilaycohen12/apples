@@ -1,0 +1,75 @@
+# CD: after CI passes on main, deploy the new code to the EC2 server via AWS SSM.
+# No SSH, no stored AWS keys (GitHub OIDC -> temporary credentials).
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]          # run after the CI workflow...
+    types: [completed]
+    branches: [main]         # ...on main
+  workflow_dispatch:         # manual "Run workflow" button
+
+permissions:
+  id-token: write            # allow GitHub to issue an OIDC token for AWS
+  contents: read
+
+jobs:
+  deploy:
+    # only if CI succeeded (or manual run)
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Log in to AWS (OIDC, temporary credentials)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_CD_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Send deploy command to the server (SSM)
+        id: send
+        run: |
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "${{ vars.EC2_INSTANCE_ID }}" \
+            --document-name AWS-RunShellScript \
+            --comment "Deploy ${{ github.sha }}" \
+            --parameters '{"commands":[
+              "set -e",
+              "export HOME=/root",
+              "cd /opt/apples",
+              "git fetch origin main",
+              "git reset --hard origin/main",
+              "./scripts/provision.sh"
+            ]}' \
+            --query Command.CommandId --output text)
+          echo "command_id=$CMD_ID" >> "$GITHUB_OUTPUT"
+          echo "Sent SSM command $CMD_ID"
+
+      - name: Wait for the deploy to finish
+        run: |
+          for i in $(seq 1 60); do      # up to 10 minutes
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "${{ steps.send.outputs.command_id }}" \
+              --instance-id "${{ vars.EC2_INSTANCE_ID }}" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            echo "Status: $STATUS"
+            case "$STATUS" in
+              Success) break ;;
+              Failed|Cancelled|TimedOut) break ;;
+            esac
+            sleep 10
+          done
+          # print the server's output (provision.sh log)
+          aws ssm get-command-invocation \
+            --command-id "${{ steps.send.outputs.command_id }}" \
+            --instance-id "${{ vars.EC2_INSTANCE_ID }}" \
+            --query StandardOutputContent --output text
+          [ "$STATUS" = "Success" ]
+
+      - name: Verify the live site shows 5 apples
+        run: |
+          APPLES=$(curl -s -m 10 "http://${{ vars.EC2_PUBLIC_IP }}" \
+            | sed -n 's/.*<span id="apples">\([0-9]*\)<\/span>.*/\1/p')
+          echo "Live site shows: $APPLES apples"
+          [ "$APPLES" = "5" ]
