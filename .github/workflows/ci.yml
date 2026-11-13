@@ -1,0 +1,36 @@
+# CI: on every push/PR, a clean Linux machine provisions the whole
+# architecture from scratch and runs all the tests.
+name: CI
+
+on:
+  push:
+    branches: [main]          # every push to main
+  pull_request:
+    branches: [main]          # every PR into main
+  workflow_dispatch:          # "Run workflow" button in GitHub UI
+
+jobs:
+  provision-and-test:
+    runs-on: ubuntu-latest    # fresh Ubuntu VM from GitHub (Docker preinstalled)
+    timeout-minutes: 15       # kill the job if something hangs
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4      # copy the repo into the VM
+
+      - name: Provision from scratch
+        run: ./scripts/provision.sh
+
+      - name: Run tests
+        run: ./scripts/test.sh
+
+      - name: Show live architecture
+        run: ./scripts/show-architecture.sh
+
+      - name: Show container logs (only if something failed)
+        if: failure()
+        run: docker compose logs
+
+      - name: Destroy
+        if: always()                   # clean up even if tests failed
+        run: ./scripts/destroy.sh
