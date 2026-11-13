@@ -31,19 +31,26 @@ resource "aws_iam_instance_profile" "server" {
 # ================= 2. GitHub OIDC (GitHub -> AWS, no keys) =================
 # Tell AWS to trust GitHub's identity tokens.
 resource "aws_iam_openid_connect_provider" "github" {
+  count           = var.create_github_oidc ? 1 : 0 # create only if asked
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
 }
 
+# The provider's ARN is always the same format, whether we created it or it already existed
+locals {
+  github_oidc_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
+}
+
 # Role that ONLY GitHub Actions of this repo, on main branch, can assume.
 resource "aws_iam_role" "github_cd" {
-  name = "apples-github-cd"
+  name       = "apples-github-cd"
+  depends_on = [aws_iam_openid_connect_provider.github] # provider must exist first (if we create it)
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Principal = { Federated = local.github_oidc_arn }
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }

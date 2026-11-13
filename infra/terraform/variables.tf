@@ -9,7 +9,7 @@ variable "region" {
 variable "aws_profile" {
   description = "AWS CLI profile to use (null = use env credentials, e.g. in CI)"
   type        = string
-  default     = "personal"
+  default     = null
 }
 
 variable "instance_type" {
@@ -40,4 +40,10 @@ variable "github_repo" {
   description = "GitHub repo allowed to deploy (owner/name)"
   type        = string
   default     = "ilaycohen12/apples"
+}
+
+variable "create_github_oidc" {
+  description = "Create the GitHub OIDC provider. Set false if the AWS account already has one"
+  type        = bool
+  default     = true
 }
