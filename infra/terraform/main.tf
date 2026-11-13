@@ -45,6 +45,7 @@ resource "aws_instance" "apples" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
   vpc_security_group_ids = [aws_security_group.apples.id]
+  iam_instance_profile   = aws_iam_instance_profile.server.name # lets SSM agent receive commands
 
   # Startup script, with repo URL + branch filled in
   user_data = templatefile("${path.module}/user-data.sh", {
