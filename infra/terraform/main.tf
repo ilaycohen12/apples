@@ -3,7 +3,7 @@
 # ---------- Find the latest official Ubuntu 24.04 image ----------
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"]   # Canonical (official Ubuntu publisher)
+  owners      = ["099720109477"] # Canonical (official Ubuntu publisher)
 
   filter {
     name   = "name"
@@ -51,7 +51,7 @@ resource "aws_instance" "apples" {
     repo_url    = var.repo_url
     repo_branch = var.repo_branch
   })
-  user_data_replace_on_change = true   # changed script => new server
+  user_data_replace_on_change = true # changed script => new server
 
   # Disk: 20GB (default 8GB is too small for Docker images). Free tier = 30GB.
   root_block_device {
