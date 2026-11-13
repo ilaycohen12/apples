@@ -35,3 +35,9 @@ variable "allowed_http_cidr" {
   type        = string
   default     = "0.0.0.0/0"
 }
+
+variable "github_repo" {
+  description = "GitHub repo allowed to deploy (owner/name)"
+  type        = string
+  default     = "ilaycohen12/apples"
+}
