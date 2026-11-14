@@ -108,7 +108,14 @@ apples/
 
 The visual demonstration is `./scripts/show-architecture.sh` (live) + the diagram above.
 
-## CI/CD (bonus)
+## Bonus
+
+### Load balancer
+- **nginx** in front of **2 app replicas** (`deploy.replicas: 2`), round-robin. Docker's DNS resolves the service name `app` to both containers.
+- nginx is the only published port; the apps have none.
+- Visible on the page ("Served by container: ...") and verified by test 3.
+
+### CI/CD
 
 ```mermaid
 flowchart LR
