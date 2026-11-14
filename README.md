@@ -65,13 +65,20 @@ apples/
 ├── nginx/
 │   └── nginx.conf             # Load balancer: round-robin to the app replicas, single entry point on port 80
 ├── docker-compose.yml         # The whole local architecture: 3 services, 2 networks, 1 volume, start order
+├── monitoring/                # (PR #9 only) Prometheus + Grafana config
+│   ├── prometheus/prometheus.yml                        # Scrapes /metrics from all app replicas (DNS discovery) every 5s
+│   └── grafana/
+│       ├── provisioning/datasources/prometheus.yml      # Connects Grafana to Prometheus
+│       ├── provisioning/dashboards/dashboards.yml       # Loads dashboards from JSON files (git = source of truth)
+│       └── dashboards/apples.json                       # The "Apples" dashboard (8 panels)
 ├── scripts/
 │   ├── provision.sh           # Removes any previous deployment and builds everything from scratch until healthy
 │   ├── test.sh                # Automated tests: health, apples count, load balancing, topology, isolation
 │   ├── show-architecture.sh   # Prints the live containers, networks, IPs and a topology diagram
 │   ├── destroy.sh             # Removes containers, networks, the DB volume and the app image
 │   ├── aws-up.sh              # Creates the AWS environment with Terraform and connects GitHub CD
-│   └── aws-down.sh            # Deletes the AWS environment and disconnects GitHub CD
+│   ├── aws-down.sh            # Deletes the AWS environment and disconnects GitHub CD
+│   └── load.sh                # (PR #9 only) Sends traffic so the Grafana graphs have data
 ├── infra/terraform/
 │   ├── versions.tf            # Terraform + AWS provider versions and default tags
 │   ├── variables.tf           # Settings with defaults (region, instance size, repo, branch...)
@@ -91,10 +98,12 @@ apples/
 | Script | What it does |
 |---|---|
 | `provision.sh` | Checks prerequisites, removes any previous deployment (incl. DB volume), builds and starts all containers, waits until all are healthy |
+| `provision.sh --monitoring` | (PR #9 only) Same + starts Prometheus and Grafana |
 | `test.sh` | Automated tests (below). Exit code 0 = all passed |
 | `show-architecture.sh` | Reads the **live** state from Docker and prints containers, networks, IPs and a topology diagram |
 | `destroy.sh` | Removes containers, networks, DB volume and the built app image |
 | `aws-up.sh` / `aws-down.sh` | Bonus: create / delete the AWS environment (see below) |
+| `load.sh` | (PR #9 only) Sends ~300 requests so the Grafana graphs have data |
 
 ## Tests
 | # | Test | Requirement |
@@ -105,6 +114,7 @@ apples/
 | 4 | nginx only on frontend, mongo only on backend, app on both | Network topology |
 | 5 | Only nginx exposes a port | Network topology / security |
 | 6 | nginx cannot reach MongoDB | Network topology / security |
+| 7 | (monitoring only) Prometheus scrapes 2 apps, Grafana dashboard loaded, Prometheus can't reach MongoDB | Own idea |
 
 The visual demonstration is `./scripts/show-architecture.sh` (live) + the diagram above.
 
