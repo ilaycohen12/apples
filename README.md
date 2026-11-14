@@ -65,13 +65,20 @@ apples/
 ├── nginx/
 │   └── nginx.conf             # Load balancer: round-robin to the app replicas, single entry point on port 80
 ├── docker-compose.yml         # The whole local architecture: 3 services, 2 networks, 1 volume, start order
+├── monitoring/                # (PR #9 only) Prometheus + Grafana config
+│   ├── prometheus/prometheus.yml                        # Scrapes /metrics from all app replicas (DNS discovery) every 5s
+│   └── grafana/
+│       ├── provisioning/datasources/prometheus.yml      # Connects Grafana to Prometheus
+│       ├── provisioning/dashboards/dashboards.yml       # Loads dashboards from JSON files (git = source of truth)
+│       └── dashboards/apples.json                       # The "Apples" dashboard (8 panels)
 ├── scripts/
 │   ├── provision.sh           # Removes any previous deployment and builds everything from scratch until healthy
 │   ├── test.sh                # Automated tests: health, apples count, load balancing, topology, isolation
 │   ├── show-architecture.sh   # Prints the live containers, networks, IPs and a topology diagram
 │   ├── destroy.sh             # Removes containers, networks, the DB volume and the app image
 │   ├── aws-up.sh              # Creates the AWS environment with Terraform and connects GitHub CD
-│   └── aws-down.sh            # Deletes the AWS environment and disconnects GitHub CD
+│   ├── aws-down.sh            # Deletes the AWS environment and disconnects GitHub CD
+│   └── load.sh                # (PR #9 only) Sends traffic so the Grafana graphs have data
 ├── infra/terraform/
 │   ├── versions.tf            # Terraform + AWS provider versions and default tags
 │   ├── variables.tf           # Settings with defaults (region, instance size, repo, branch...)
@@ -91,10 +98,12 @@ apples/
 | Script | What it does |
 |---|---|
 | `provision.sh` | Checks prerequisites, removes any previous deployment (incl. DB volume), builds and starts all containers, waits until all are healthy |
+| `provision.sh --monitoring` | (PR #9 only) Same + starts Prometheus and Grafana |
 | `test.sh` | Automated tests (below). Exit code 0 = all passed |
 | `show-architecture.sh` | Reads the **live** state from Docker and prints containers, networks, IPs and a topology diagram |
 | `destroy.sh` | Removes containers, networks, DB volume and the built app image |
 | `aws-up.sh` / `aws-down.sh` | Bonus: create / delete the AWS environment (see below) |
+| `load.sh` | (PR #9 only) Sends ~300 requests so the Grafana graphs have data |
 
 ## Tests
 | # | Test | Requirement |
@@ -105,6 +114,7 @@ apples/
 | 4 | nginx only on frontend, mongo only on backend, app on both | Network topology |
 | 5 | Only nginx exposes a port | Network topology / security |
 | 6 | nginx cannot reach MongoDB | Network topology / security |
+| 7 | (monitoring only) Prometheus scrapes 2 apps, Grafana dashboard loaded, Prometheus can't reach MongoDB | Own idea |
 
 The visual demonstration is `./scripts/show-architecture.sh` (live) + the diagram above.
 
@@ -130,6 +140,8 @@ flowchart LR
 - **CD** (`.github/workflows/cd.yml`): after CI passes on `main`, deploys to EC2 and verifies the live site. Skipped automatically if no AWS environment exists.
 
 ### AWS environment (Terraform, `infra/terraform/`)
+**Live:** http://52.86.90.227
+
 - **EC2** Ubuntu 24.04 `t3.micro` with a fixed **Elastic IP**. On first boot, `user-data.sh` installs Docker, clones this repo and runs the same `provision.sh`.
 - **Security Group**: only port 80 open. No SSH.
 - **IAM**: server role for SSM; a GitHub OIDC role that only this repo's `main` branch can assume, allowed only to send a command to this one server.
@@ -138,6 +150,58 @@ Create / delete (needs `terraform`, `aws`, `gh` and an AWS account with EC2 + IA
 ```bash
 AWS_PROFILE=<your-profile> ./scripts/aws-up.sh     # terraform apply + connect GitHub CD
 AWS_PROFILE=<your-profile> ./scripts/aws-down.sh   # terraform destroy + disconnect CD
+```
+
+### Monitoring (own idea – Pull Request)
+Proposed in [PR #9](https://github.com/ilaycohen12/apples/pull/9) (kept open for review, as the exercise asks for own ideas as a PR).
+
+- **Prometheus** scrapes `/metrics` from both app containers every 5s (request count, latency, errors, apples in stock, Node.js memory/CPU).
+- **Grafana** shows a ready-made dashboard (provisioned as code), including requests **per container** to visualize the load balancer.
+- Optional: `./scripts/provision.sh --monitoring`. Without the flag, nothing changes.
+- Isolated: separate `monitoring` network; `/metrics` is not exposed through nginx.
+
+**How to try it** (the monitoring code lives on the PR branch, not on `main`):
+```bash
+git checkout feature/monitoring        # monitoring files exist only on this branch
+./scripts/provision.sh --monitoring    # 6 containers: + Prometheus + Grafana
+./scripts/load.sh                      # send traffic so the graphs have data
+./scripts/test.sh                      # 15 tests (adds 3 monitoring tests)
+```
+Open http://localhost:3001 (Grafana, no login) and http://localhost:9090 (Prometheus).
+To go back: `git checkout main && ./scripts/provision.sh`.
+
+**Full architecture with monitoring:**
+```mermaid
+flowchart TD
+    U[Browser] -->|:80| N
+    U -->|:3001| G
+    U -.->|:9090| P
+
+    subgraph frontend [network: frontend]
+        N[nginx<br/>load balancer]
+    end
+
+    subgraph apps [app x2 - on frontend + backend + monitoring]
+        A1[app-1<br/>NodeJS<br/>/metrics]
+        A2[app-2<br/>NodeJS<br/>/metrics]
+    end
+
+    subgraph backend [network: backend - internal, no internet]
+        M[(MongoDB<br/>store.fruits)]
+    end
+
+    subgraph monitoring [network: monitoring - optional profile]
+        P[Prometheus<br/>scrapes every 5s]
+        G[Grafana<br/>Apples dashboard]
+    end
+
+    N -->|round-robin| A1
+    N -->|round-robin| A2
+    A1 --> M
+    A2 --> M
+    P -->|GET /metrics| A1
+    P -->|GET /metrics| A2
+    G -->|PromQL| P
 ```
 
 ## Design decisions
