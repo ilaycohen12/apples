@@ -140,6 +140,14 @@ AWS_PROFILE=<your-profile> ./scripts/aws-up.sh     # terraform apply + connect G
 AWS_PROFILE=<your-profile> ./scripts/aws-down.sh   # terraform destroy + disconnect CD
 ```
 
+### Monitoring (own idea – Pull Request)
+Proposed in [PR #9](https://github.com/ilaycohen12/apples/pull/9) (kept open for review, as the exercise asks for own ideas as a PR).
+
+- **Prometheus** scrapes `/metrics` from both app containers every 5s (request count, latency, errors, apples in stock, Node.js memory/CPU).
+- **Grafana** shows a ready-made dashboard (provisioned as code), including requests **per container** to visualize the load balancer.
+- Optional: `./scripts/provision.sh --monitoring`. Without the flag, nothing changes.
+- Isolated: separate `monitoring` network; `/metrics` is not exposed through nginx.
+
 ## Design decisions
 - **One container per component**; only the app (our code) has a Dockerfile, mongo and nginx use official images.
 - **Network isolation**: `backend` is `internal`, so the DB has no internet access and is unreachable from nginx. Only nginx publishes a port.
