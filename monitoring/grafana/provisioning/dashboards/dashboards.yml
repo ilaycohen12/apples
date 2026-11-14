@@ -1,0 +1,10 @@
+# Tell Grafana to load dashboards from JSON files in a folder.
+apiVersion: 1
+providers:
+  - name: apples
+    folder: Apples                         # folder name shown in Grafana
+    type: file
+    disableDeletion: true                  # can't delete it from the UI
+    allowUiUpdates: false                  # the JSON file in git is the source of truth
+    options:
+      path: /var/lib/grafana/dashboards    # where compose mounts monitoring/grafana/dashboards
