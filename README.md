@@ -130,6 +130,8 @@ flowchart LR
 - **CD** (`.github/workflows/cd.yml`): after CI passes on `main`, deploys to EC2 and verifies the live site. Skipped automatically if no AWS environment exists.
 
 ### AWS environment (Terraform, `infra/terraform/`)
+**Live:** http://52.86.90.227
+
 - **EC2** Ubuntu 24.04 `t3.micro` with a fixed **Elastic IP**. On first boot, `user-data.sh` installs Docker, clones this repo and runs the same `provision.sh`.
 - **Security Group**: only port 80 open. No SSH.
 - **IAM**: server role for SSM; a GitHub OIDC role that only this repo's `main` branch can assume, allowed only to send a command to this one server.
