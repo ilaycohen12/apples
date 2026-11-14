@@ -9,6 +9,6 @@ echo "==> Sending $N requests to $URL (~10/sec)"
 for i in $(seq 1 "$N"); do
   curl -s -o /dev/null "$URL"
   sleep 0.1
-  [ $((i % 50)) -eq 0 ] && echo "   $i/$N"
+  if [ $((i % 50)) -eq 0 ]; then echo "   $i/$N"; fi
 done
 echo "✅ Done. Check the dashboard: http://localhost:3001"
