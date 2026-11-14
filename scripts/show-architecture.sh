@@ -3,6 +3,7 @@
 # and draws them with their networks, IPs and ports. Nothing is hardcoded.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+export COMPOSE_PROFILES=monitoring   # include monitoring containers if running
 
 # Stop if nothing is running
 if [ -z "$(docker compose ps -q)" ]; then
@@ -27,8 +28,9 @@ docker compose ps --format 'table {{.Name}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}
 
 echo
 echo "==> 2. Networks (live)"
-for NET in frontend backend; do
+for NET in frontend backend monitoring; do
   FULL="${PROJECT}_${NET}"
+  docker network inspect "$FULL" >/dev/null 2>&1 || continue   # skip if not created
   INTERNAL=$(docker network inspect -f '{{.Internal}}' "$FULL")
   echo "  $FULL  (internal=$INTERNAL)"
   docker network inspect -f '{{range .Containers}}    - {{.Name}}  {{.IPv4Address}}{{"\n"}}{{end}}' "$FULL"
@@ -53,4 +55,14 @@ echo "  ======== network: backend (internal, no internet) ========"
 echo "             |"
 echo "   [ $(name "$MONGO") ]  $(state "$MONGO")"
 echo "     backend: $(ip "$MONGO" backend)   (no open ports)"
+PROM=$(docker compose ps -q prometheus)
+if [ -n "$PROM" ]; then
+  GRAF=$(docker compose ps -q grafana)
+  echo
+  echo "  ======== network: monitoring ========"
+  echo "   [ $(name "$PROM") ]  $(state "$PROM")   scrapes app /metrics every 5s"
+  echo "     monitoring: $(ip "$PROM" monitoring)   http://localhost:${PROMETHEUS_PORT:-9090}"
+  echo "   [ $(name "$GRAF") ]  $(state "$GRAF")   dashboards"
+  echo "     monitoring: $(ip "$GRAF" monitoring)   http://localhost:${GRAFANA_PORT:-3001}"
+fi
 echo

@@ -27,6 +27,9 @@ jobs:
       - name: Show live architecture
         run: ./scripts/show-architecture.sh
 
+      - name: Provision WITH monitoring + test
+        run: ./scripts/provision.sh --monitoring && ./scripts/test.sh
+
       - name: Show container logs (only if something failed)
         if: failure()
         run: docker compose logs
