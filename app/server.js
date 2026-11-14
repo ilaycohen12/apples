@@ -25,7 +25,7 @@ app.get('/', async (req, res) => {
 <html>
 <head><meta charset="utf-8"><title>Apples</title></head>
 <body style="font-family:sans-serif;text-align:center">
-  <h1>Hello World 🍎🍎</h1>
+  <h1>Hello World 🍎</h1>
   <h2>Number of apples: <span id="apples">${apple ? apple.qty : 0}</span></h2>
   <table border="1" cellpadding="6" style="margin:auto">
     <tr><th>Fruit</th><th>Qty</th><th>Rating</th></tr>${rows}
