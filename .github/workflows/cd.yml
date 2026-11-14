@@ -15,8 +15,10 @@ permissions:
 
 jobs:
   deploy:
-    # only if CI succeeded (or manual run)
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # only if an AWS server is configured AND (CI succeeded or manual run)
+    if: >-
+      vars.EC2_INSTANCE_ID != '' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

@@ -2,12 +2,12 @@
 
 output "public_ip" {
   description = "Public IP of the apples server"
-  value       = aws_instance.apples.public_ip
+  value       = aws_eip.apples.public_ip
 }
 
 output "url" {
   description = "Open this in the browser (ready ~3-5 min after apply)"
-  value       = "http://${aws_instance.apples.public_ip}"
+  value       = "http://${aws_eip.apples.public_ip}"
 }
 
 output "instance_id" {

@@ -69,3 +69,13 @@ resource "aws_instance" "apples" {
     Name = "apples-server"
   }
 }
+
+# ---------- Fixed public IP (Elastic IP) ----------
+# Without it, the server gets a NEW random IP on every stop/start or rebuild.
+resource "aws_eip" "apples" {
+  instance = aws_instance.apples.id
+  domain   = "vpc"
+  tags = {
+    Name = "apples-ip"
+  }
+}
