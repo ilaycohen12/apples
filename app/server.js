@@ -2,6 +2,7 @@
 const express = require('express');
 const { MongoClient } = require('mongodb');
 const os = require('os');
+const promClient = require('prom-client');
 
 // Settings come from environment variables (set in docker-compose), with local defaults.
 const PORT = process.env.PORT || 3000;
@@ -11,6 +12,57 @@ const DB_NAME = process.env.DB_NAME || 'store';
 const app = express();
 const client = new MongoClient(MONGO_URL);
 let fruits; // the "fruits" collection, set after connecting
+
+// ---------- Prometheus metrics ----------
+const register = new promClient.Registry();
+register.setDefaultLabels({ container: os.hostname() });   // tag every metric with the container name
+promClient.collectDefaultMetrics({ register });               // Node.js basics: CPU, memory, event loop
+
+// Count requests (by page, method, status code)
+const httpRequests = new promClient.Counter({
+  name: 'http_requests_total',
+  help: 'Total HTTP requests',
+  labelNames: ['route', 'method', 'status'],
+  registers: [register],
+});
+
+// Measure how long each request takes
+const httpDuration = new promClient.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'HTTP request duration in seconds',
+  labelNames: ['route', 'method', 'status'],
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1],
+  registers: [register],
+});
+
+// Business metric: apples in stock, read from the DB each time Prometheus asks
+new promClient.Gauge({
+  name: 'apples_in_stock',
+  help: 'Number of apples in the database',
+  registers: [register],
+  async collect() {
+    const apple = await fruits.findOne({ name: 'apples' });
+    this.set(apple ? apple.qty : 0);
+  },
+});
+
+// Middleware: time + count every request (except /metrics itself)
+app.use((req, res, next) => {
+  if (req.path === '/metrics') return next();
+  const end = httpDuration.startTimer();
+  res.on('finish', () => {
+    const labels = { route: req.route ? req.route.path : 'unknown', method: req.method, status: res.statusCode };
+    httpRequests.inc(labels);
+    end(labels);
+  });
+  next();
+});
+
+// The page Prometheus reads
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+});
 
 // Main page: shows the number of apples (the required test) + all fruits.
 app.get('/', async (req, res) => {
