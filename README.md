@@ -148,6 +148,50 @@ Proposed in [PR #9](https://github.com/ilaycohen12/apples/pull/9) (kept open for
 - Optional: `./scripts/provision.sh --monitoring`. Without the flag, nothing changes.
 - Isolated: separate `monitoring` network; `/metrics` is not exposed through nginx.
 
+**How to try it** (the monitoring code lives on the PR branch, not on `main`):
+```bash
+git checkout feature/monitoring        # monitoring files exist only on this branch
+./scripts/provision.sh --monitoring    # 6 containers: + Prometheus + Grafana
+./scripts/load.sh                      # send traffic so the graphs have data
+./scripts/test.sh                      # 15 tests (adds 3 monitoring tests)
+```
+Open http://localhost:3001 (Grafana, no login) and http://localhost:9090 (Prometheus).
+To go back: `git checkout main && ./scripts/provision.sh`.
+
+**Full architecture with monitoring:**
+```mermaid
+flowchart TD
+    U[Browser] -->|:80| N
+    U -->|:3001| G
+    U -.->|:9090| P
+
+    subgraph frontend [network: frontend]
+        N[nginx<br/>load balancer]
+    end
+
+    subgraph apps [app x2 - on frontend + backend + monitoring]
+        A1[app-1<br/>NodeJS<br/>/metrics]
+        A2[app-2<br/>NodeJS<br/>/metrics]
+    end
+
+    subgraph backend [network: backend - internal, no internet]
+        M[(MongoDB<br/>store.fruits)]
+    end
+
+    subgraph monitoring [network: monitoring - optional profile]
+        P[Prometheus<br/>scrapes every 5s]
+        G[Grafana<br/>Apples dashboard]
+    end
+
+    N -->|round-robin| A1
+    N -->|round-robin| A2
+    A1 --> M
+    A2 --> M
+    P -->|GET /metrics| A1
+    P -->|GET /metrics| A2
+    G -->|PromQL| P
+```
+
 ## Design decisions
 - **One container per component**; only the app (our code) has a Dockerfile, mongo and nginx use official images.
 - **Network isolation**: `backend` is `internal`, so the DB has no internet access and is unreachable from nginx. Only nginx publishes a port.
