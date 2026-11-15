@@ -1,0 +1,10 @@
+# Tell Grafana where its data comes from (loaded automatically on startup).
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus              # fixed ID, the dashboard refers to it
+    type: prometheus
+    access: proxy                # Grafana server queries Prometheus (not the browser)
+    url: http://prometheus:9090  # "prometheus" = compose service name (Docker DNS)
+    isDefault: true
+    editable: false

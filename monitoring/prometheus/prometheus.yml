@@ -1,0 +1,20 @@
+# Prometheus config: what to scrape and how often.
+
+global:
+  scrape_interval: 15s          # default for all jobs
+
+scrape_configs:
+  # The app containers. Docker DNS returns ALL replicas for the name "app",
+  # so Prometheus discovers app-1 and app-2 automatically (and any new ones).
+  - job_name: apples-app
+    scrape_interval: 5s
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names: [app]
+        type: A
+        port: 3000
+
+  # Prometheus monitors itself (is it up, how many series it stores)
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

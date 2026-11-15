@@ -7,6 +7,11 @@ cd "$(dirname "$0")/.."
 URL="http://localhost:${HTTP_PORT:-80}"
 PASS=0; FAIL=0
 
+# Include monitoring containers in all checks if they are running
+export COMPOSE_PROFILES=monitoring
+MONITORING=$(docker compose ps -q prometheus)
+EXPECTED=4; [ -n "$MONITORING" ] && EXPECTED=6
+
 pass() { echo "  ✅ PASS: $1"; PASS=$((PASS+1)); }
 fail() { echo "  ❌ FAIL: $1"; FAIL=$((FAIL+1)); }
 
@@ -19,8 +24,8 @@ nets() {
 # ---------------------------------------------------------------
 echo "==> Test 1: all containers are running and healthy"
 HEALTHY=$(docker compose ps --format '{{.Health}}' | grep -c '^healthy$' || true)
-[ "$HEALTHY" -eq 4 ] && pass "4/4 containers healthy (mongo, app x2, nginx)" \
-  || fail "only $HEALTHY/4 containers healthy"
+[ "$HEALTHY" -eq "$EXPECTED" ] && pass "$EXPECTED/$EXPECTED containers healthy" \
+  || fail "only $HEALTHY/$EXPECTED containers healthy"
 
 # ---------------------------------------------------------------
 echo "==> Test 2: html page shows the number of apples from the DB"
@@ -71,6 +76,25 @@ if docker compose exec -T nginx wget -q -T 2 -O /dev/null http://mongo:27017 2>/
   fail "nginx CAN reach mongo (should be isolated)"
 else
   pass "nginx cannot reach mongo"
+fi
+
+# ---------------------------------------------------------------
+echo "==> Test 7: monitoring (Prometheus + Grafana)"
+if [ -z "$MONITORING" ]; then
+  echo "     (skipped: monitoring not running, use ./scripts/provision.sh --monitoring)"
+else
+  UP=$(curl -s -G "http://localhost:${PROMETHEUS_PORT:-9090}/api/v1/query" \
+        --data-urlencode 'query=sum(up{job="apples-app"})' | sed -n 's/.*"value":\[[^,]*,"\([0-9]*\)"\].*/\1/p')
+  [ "$UP" = "2" ] && pass "Prometheus scrapes 2 app containers" || fail "Prometheus sees '$UP' app containers"
+
+  CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${GRAFANA_PORT:-3001}/api/dashboards/uid/apples")
+  [ "$CODE" = "200" ] && pass "Grafana dashboard 'Apples' is provisioned" || fail "Grafana dashboard HTTP $CODE"
+
+  if docker compose exec -T prometheus wget -q -T 2 -O /dev/null http://mongo:27017 2>/dev/null; then
+    fail "Prometheus CAN reach mongo (should be isolated)"
+  else
+    pass "Prometheus cannot reach mongo (isolated)"
+  fi
 fi
 
 echo
