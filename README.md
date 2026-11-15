@@ -10,7 +10,7 @@ I used **NodeJS + MongoDB + Docker containers**, fully defined as code and provi
 - **Live on AWS (bonus):** http://52.86.90.227
 
 ## Quick start
-Requirements: Linux (or Windows WSL2 / macOS) with **Docker Engine + Docker Compose v2**, `git`, `curl`.
+Requirements: Linux (or Windows WSL2) with **Docker Engine + Docker Compose v2**, `git`, `curl`.
 ```bash
 git clone https://github.com/ilaycohen12/apples.git
 cd apples
@@ -153,7 +153,7 @@ AWS_PROFILE=<your-profile> ./scripts/aws-down.sh   # terraform destroy + disconn
 ```
 
 ### Monitoring (own idea – Pull Request)
-In a different branch.
+In a different branch (`feature/monitoring`), opened as [PR #9](https://github.com/ilaycohen12/apples/pull/9) for review.
 
 - **Prometheus** scrapes `/metrics` from both app containers every 5s (request count, latency, errors, apples in stock, Node.js memory/CPU).
 - **Grafana** shows a ready-made dashboard (provisioned as code), including requests **per container** to visualize the load balancer.
