@@ -4,7 +4,7 @@
 [![CD](https://github.com/ilaycohen12/apples/actions/workflows/cd.yml/badge.svg)](https://github.com/ilaycohen12/apples/actions/workflows/cd.yml)
 
 A "Hello World" web app that shows the number of apples stored in MongoDB.
-**NodeJS + MongoDB + Docker containers**, fully defined as code and provisioned from scratch with one command.
+I used **NodeJS + MongoDB + Docker containers**, fully defined as code and provisioned from scratch with one command.
 
 - **Run locally:** `./scripts/provision.sh` → http://localhost
 - **Live on AWS (bonus):** http://52.86.90.227
@@ -140,7 +140,7 @@ flowchart LR
 - **CD** (`.github/workflows/cd.yml`): after CI passes on `main`, deploys to EC2 and verifies the live site. Skipped automatically if no AWS environment exists.
 
 ### AWS environment (Terraform, `infra/terraform/`)
-**Live:** http://52.86.90.227
+**Live:** http://52.86.90.227 (the EC2 is already running with my profile)
 
 - **EC2** Ubuntu 24.04 `t3.micro` with a fixed **Elastic IP**. On first boot, `user-data.sh` installs Docker, clones this repo and runs the same `provision.sh`.
 - **Security Group**: only port 80 open. No SSH.
@@ -153,7 +153,7 @@ AWS_PROFILE=<your-profile> ./scripts/aws-down.sh   # terraform destroy + disconn
 ```
 
 ### Monitoring (own idea – Pull Request)
-Proposed in [PR #9](https://github.com/ilaycohen12/apples/pull/9) (kept open for review, as the exercise asks for own ideas as a PR).
+In a different branch.
 
 - **Prometheus** scrapes `/metrics` from both app containers every 5s (request count, latency, errors, apples in stock, Node.js memory/CPU).
 - **Grafana** shows a ready-made dashboard (provisioned as code), including requests **per container** to visualize the load balancer.
